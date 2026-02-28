@@ -22,23 +22,21 @@ else
     status_done "MySQL Server"
 fi
 
-# Enable service
+# ── Enable service ───────────────────────────────────────────
 _mysql_svc=""
 if systemctl list-unit-files 2>/dev/null | grep -q "^mysql.service"; then
     _mysql_svc="mysql"
 elif systemctl list-unit-files 2>/dev/null | grep -q "^mariadb.service"; then
     _mysql_svc="mariadb"
 fi
-
 if [[ -n "$_mysql_svc" ]]; then
     sudo systemctl enable --now "$_mysql_svc" &>/dev/null || true
 fi
 
-# ── Wait for MySQL socket to be ready ────────────────────────
+# ── Wait for MySQL to be ready ───────────────────────────────
 log "Waiting for MySQL to be ready..."
 _mysql_ready=false
 for _i in $(seq 1 15); do
-    # Try both common socket locations
     if sudo mysqladmin ping --silent 2>/dev/null; then
         _mysql_ready=true
         break
@@ -47,40 +45,42 @@ for _i in $(seq 1 15); do
 done
 
 if [[ "$_mysql_ready" != "true" ]]; then
-    warn "MySQL did not respond to ping -- skipping auth config"
-    warn "Run manually once MySQL is up:"
-    warn "  sudo mysql -e \"ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${MYSQL_ROOT_PASSWORD}'; FLUSH PRIVILEGES;\""
+    warn "MySQL did not respond -- skipping auth config"
     return
 fi
 
-# ── Root password auth fix ───────────────────────────────────
-# Determine the current auth plugin for root
-_current_plugin=$(sudo mysql -N -e \
-    "SELECT plugin FROM mysql.user WHERE User='root' AND Host='localhost';" \
-    2>/dev/null || echo "unknown")
+# ── Check if root already works with the configured password ─
+if mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "SELECT 1;" &>/dev/null; then
+    status_skipped "MySQL root auth (password already set correctly)"
+    return
+fi
 
-log "Current root auth plugin: ${_current_plugin}"
+# ── Get a working admin connection ───────────────────────────
+# Try in order: debian-sys-maint, passwordless sudo, then give up
+_mysql_cmd=""
+_DEBIAN_CNF="/etc/mysql/debian.cnf"
 
-if [[ "$_current_plugin" == "mysql_native_password" ]]; then
-    # Already using password auth -- just update the password
-    if sudo mysql -e \
-        "ALTER USER 'root'@'localhost' IDENTIFIED BY '${MYSQL_ROOT_PASSWORD}'; FLUSH PRIVILEGES;" \
-        &>/dev/null; then
-        success "MySQL root password updated"
-    else
-        warn "Could not update MySQL root password"
-    fi
+if [[ -f "$_DEBIAN_CNF" ]] && sudo mysql --defaults-file="$_DEBIAN_CNF" -e "SELECT 1;" &>/dev/null; then
+    _mysql_cmd="sudo mysql --defaults-file=$_DEBIAN_CNF"
+elif sudo mysql -e "SELECT 1;" &>/dev/null; then
+    _mysql_cmd="sudo mysql"
+fi
+
+if [[ -z "$_mysql_cmd" ]]; then
+    warn "Cannot connect to MySQL as admin -- skipping auth config"
+    warn "Run manually:  mysql -u root -p'CURRENT_PASSWORD' -e \"ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${MYSQL_ROOT_PASSWORD}'; FLUSH PRIVILEGES;\""
+    return
+fi
+
+# ── Apply the fix ────────────────────────────────────────────
+if ${_mysql_cmd} -e "
+    ALTER USER 'root'@'localhost'
+        IDENTIFIED WITH mysql_native_password
+        BY '${MYSQL_ROOT_PASSWORD}';
+    FLUSH PRIVILEGES;
+" &>/dev/null; then
+    success "MySQL root password set to configured value"
 else
-    # Switch from unix_socket / auth_socket / caching_sha2 to native password
-    if sudo mysql -e "
-        ALTER USER 'root'@'localhost'
-            IDENTIFIED WITH mysql_native_password
-            BY '${MYSQL_ROOT_PASSWORD}';
-        FLUSH PRIVILEGES;
-    " &>/dev/null; then
-        success "MySQL root auth configured (native password)"
-    else
-        warn "Could not update MySQL root auth -- try manually:"
-        warn "  sudo mysql -e \"ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${MYSQL_ROOT_PASSWORD}'; FLUSH PRIVILEGES;\""
-    fi
+    warn "Could not update MySQL root password -- run manually:"
+    warn "  ${_mysql_cmd} -e \"ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${MYSQL_ROOT_PASSWORD}'; FLUSH PRIVILEGES;\""
 fi
