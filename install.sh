@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-#  install.sh — new_env entry point
+#  install.sh — nuvio entry point
 #  Run directly after cloning, or via bootstrap.sh
 # ============================================================
 set -euo pipefail

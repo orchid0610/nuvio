@@ -21,7 +21,8 @@ curl -fsSL https://raw.githubusercontent.com/orchid0610/nuvio/main/bootstrap.sh 
 Edit `config/settings.env` before running:
 
 ```env
-
+USERNAME=orchid
+ROOT_FOLDER=www
 
 NGINX_INSTALL=true
 MYSQL_INSTALL=true
@@ -34,7 +35,7 @@ PHP_VERSIONS="8.1 8.2 8.3"
 ## Project structure
 
 ```
-new_env/
+nuvio/
 ├── bootstrap.sh              # curl | bash entry point
 ├── setup.sh                  # main orchestrator
 ├── config/
