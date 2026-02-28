@@ -8,13 +8,9 @@
 #  What it does:
 #    1. Checks dependencies (git, curl)
 #    2. Clones the repo (or pulls if already cloned)
-#    3. Hands off to setup.sh
+#    3. Re-launches install.sh directly (not piped) so
+#       interactive prompts work correctly
 # ============================================================
-set -euo pipefail
-
-# ── Config ───────────────────────────────────────────────────
-REPO_URL="https://github.com/orchid0610/nuvio.git"   # <-- update this
-INSTALL_DIR="${HOME}/.nuvio"
 
 # ── Colors (no lib available yet) ────────────────────────────
 _R="\033[1;31m" _G="\033[1;32m" _Y="\033[1;33m" _B="\033[1;34m" _X="\033[0m"
@@ -24,13 +20,17 @@ warn()  { echo -e "${_Y}[WARN]${_X}  $*"; }
 die()   { echo -e "${_R}[ERROR]${_X} $*" >&2; exit 1; }
 sep()   { echo -e "\n${_B}══════════════════════════════════════${_X}\n"; }
 
-# ── Dependency checks ────────────────────────────────────────
+# ── Config ───────────────────────────────────────────────────
+REPO_URL="https://github.com/orchid0610/nuvio.git"
+INSTALL_DIR="${HOME}/.nuvio"
+
 sep
 echo -e "  ${_B}nuvio${_X} — bootstrap"
 sep
 
-command -v git  &>/dev/null || die "git is required. Install it and re-run."
-command -v curl &>/dev/null || die "curl is required. Install it and re-run."
+# ── Dependency checks ────────────────────────────────────────
+command -v git  &>/dev/null || die "git is required. Install it first:  sudo apt install git"
+command -v curl &>/dev/null || die "curl is required. Install it first: sudo apt install curl"
 
 # ── Clone or update ──────────────────────────────────────────
 if [[ -d "$INSTALL_DIR/.git" ]]; then
@@ -43,6 +43,11 @@ else
     ok "Repo cloned"
 fi
 
-# ── Hand off ─────────────────────────────────────────────────
-info "Starting setup..."
-bash "$INSTALL_DIR/install.sh"
+# ── Re-launch with a real TTY so interactive prompts work ────
+# curl | bash has no TTY attached — read gets EOF and skips prompts.
+# We hand off by exec'ing install.sh directly from the cloned repo,
+# which restores stdin from the terminal.
+ok "Bootstrap complete. Launching installer..."
+echo ""
+
+exec bash "$INSTALL_DIR/install.sh"
