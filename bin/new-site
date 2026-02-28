@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# ============================================================
+#  new-site — create a local Nginx + PHP-FPM vhost
+#  Usage: sudo new-site <project-name>
+# ============================================================
+set -euo pipefail
+
+# --- Colors (self-contained, no lib dependency) ---
+_R="\033[1;31m" _G="\033[1;32m" _Y="\033[1;33m" _B="\033[1;34m" _X="\033[0m"
+
+_info()  { echo -e "${_B}  →${_X}  $*"; }
+_ok()    { echo -e "${_G}  ✔${_X}  $*"; }
+_warn()  { echo -e "${_Y}  !${_X}  $*"; }
+_die()   { echo -e "${_R}  ✘${_X}  $*" >&2; exit 1; }
+_sep()   { echo -e "${_B}──────────────────────────────────────${_X}"; }
+
+# --- Guards ---
+[[ "$EUID" -eq 0 ]]  || _die "Run with sudo:  sudo new-site <project-name>"
+[[ -n "${1:-}" ]]    || { echo "Usage: sudo new-site <project-name>"; exit 1; }
+
+# --- Config ---
+REAL_USER="${SUDO_USER:-$USER}"
+USER_HOME="$(getent passwd "$REAL_USER" | cut -d: -f6)"
+WWW_DIR="$USER_HOME/www"
+PROJECT_NAME="$1"
+DOMAIN="${PROJECT_NAME}.test"
+PROJECT_PATH="${WWW_DIR}/${PROJECT_NAME}"
+PHP_VERSION="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null)" \
+    || _die "php not found — is PHP installed?"
+
+NGINX_AVAILABLE="/etc/nginx/sites-available/${DOMAIN}"
+NGINX_ENABLED="/etc/nginx/sites-enabled/${DOMAIN}"
+
+# --- Validate ---
+_sep
+echo -e "  Creating vhost for  ${_B}${DOMAIN}${_X}  (PHP ${PHP_VERSION})"
+_sep
+
+[[ -d "${PROJECT_PATH}/public" ]] \
+    || _die "Directory not found: ${PROJECT_PATH}/public"
+
+# --- Nginx config ---
+if [[ -f "$NGINX_AVAILABLE" ]]; then
+    _warn "Nginx config already exists: $NGINX_AVAILABLE"
+else
+    _info "Writing Nginx config..."
+    cat > "$NGINX_AVAILABLE" <<NGINX
+server {
+    listen 80;
+    server_name ${DOMAIN};
+    root ${PROJECT_PATH}/public;
+
+    index index.php index.html;
+
+    location / {
+        try_files \$uri \$uri/ /index.php?\$query_string;
+    }
+
+    location ~ \.php\$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php${PHP_VERSION}-fpm.sock;
+    }
+
+    location ~ /\.ht {
+        deny all;
+    }
+}
+NGINX
+    _ok "Nginx config written"
+fi
+
+# --- Enable site ---
+if [[ -L "$NGINX_ENABLED" ]]; then
+    _warn "Site already enabled"
+else
+    ln -sf "$NGINX_AVAILABLE" "$NGINX_ENABLED"
+    _ok "Site enabled"
+fi
+
+# --- /etc/hosts ---
+if grep -q "$DOMAIN" /etc/hosts; then
+    _warn "${DOMAIN} already in /etc/hosts"
+else
+    echo "127.0.0.1 ${DOMAIN}" >> /etc/hosts
+    _ok "Added ${DOMAIN} to /etc/hosts"
+fi
+
+# --- Reload Nginx ---
+nginx -t &>/dev/null || _die "Nginx config test failed — run 'sudo nginx -t' for details"
+systemctl reload nginx
+_ok "Nginx reloaded"
+
+# --- Done ---
+_sep
+echo -e "  ${_G}Ready!${_X}  http://${DOMAIN}"
+echo -e "  Root:   ${PROJECT_PATH}"
+_sep
+echo ""

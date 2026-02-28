@@ -1,78 +1,87 @@
 #!/usr/bin/env bash
+# ============================================================
+#  modules/packages/php.sh — PHP multi-version install
+# ============================================================
 
-[[ "$PHP_INSTALL" == true ]] || { status_skipped "PHP module"; return; }
+section "PHP"
 
-# Add repository only for apt (Ubuntu/Debian)
-if [ "$PKG_MANAGER" = "apt" ]; then
-    if ! grep -q "ondrej/php" /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null; then
-        status_installing "Adding PHP PPA"
-        (sudo apt install -y software-properties-common &&
-         sudo add-apt-repository ppa:ondrej/php -y &&
-         sudo apt update -y) &
-        pid=$!
-        spinner $pid
-        wait $pid
-        status_done "PHP PPA added"
+if [[ "$PHP_INSTALL" != "true" ]]; then
+    status_skipped "PHP (disabled in config)"
+    return
+fi
+
+# ── PPA (apt only) ───────────────────────────────────────────
+if [[ "$PKG_MANAGER" == "apt" ]]; then
+    if grep -rq "ondrej/php" /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null; then
+        status_skipped "PHP PPA (already added)"
     else
-        status_skipped "PHP PPA"
+        run_quiet "Adding PHP PPA (ondrej/php)" \
+            bash -c "sudo apt install -y software-properties-common \
+                     && sudo add-apt-repository ppa:ondrej/php -y \
+                     && sudo apt update -y"
     fi
 fi
 
-# Install each PHP version
-for version in "${PHP_VERSIONS[@]}"; do
-    if is_installed "php$version-fpm"; then
-        status_skipped "PHP $version"
+# ── Per-version install ──────────────────────────────────────
+for version in "${PHP_VERSIONS_ARR[@]}"; do
+
+    if pkg_installed "php${version}-fpm" || pkg_installed "php-fpm"; then
+        status_skipped "PHP ${version} (already installed)"
         continue
     fi
 
-    status_installing "PHP $version and extensions"
-    (
-        # Package names may differ slightly per distro
-        case "$PKG_MANAGER" in
-            apt)
-                install_pkg "php$version php$version-fpm php$version-cli php$version-mysql \
-                    php$version-mbstring php$version-xml php$version-curl php$version-zip \
-                    php$version-bcmath php$version-intl php$version-readline"
-                ;;
-            dnf)
-                install_pkg "php php-fpm php-cli php-mysqlnd php-mbstring php-xml php-curl \
-                    php-zip php-bcmath php-intl"
-                ;;
-            pacman)
-                install_pkg "php php-fpm php-intl php-mbstring php-curl php-xml php-zip php-bcmath"
-                ;;
-        esac
+    run_quiet "Installing PHP ${version}" \
+        bash -c "_php_install_version ${version}"
 
-        # Enable and start FPM if exists
-        if systemctl list-units --type=service | grep -q "php$version-fpm"; then
-            sudo systemctl enable php$version-fpm
-            sudo systemctl start php$version-fpm
-        elif systemctl list-units --type=service | grep -q "php-fpm"; then
-            sudo systemctl enable php-fpm
-            sudo systemctl start php-fpm
-        fi
-    ) &
-    pid=$!
-    spinner $pid
-    wait $pid
+    # Enable FPM service
+    local svc="php${version}-fpm"
+    if ! systemctl list-unit-files | grep -q "${svc}.service"; then
+        svc="php-fpm"
+    fi
+    sudo systemctl enable --now "$svc" &>/dev/null || warn "Could not enable ${svc}"
 
-    if is_installed "php$version-fpm" || is_installed "php-fpm"; then
-        status_done "PHP $version"
+    if pkg_installed "php${version}-fpm" || pkg_installed "php-fpm"; then
+        status_done "PHP ${version}"
     else
-        status_fail "PHP $version"
+        status_fail "PHP ${version}"
     fi
 done
 
-# Configure PHP CLI alternatives (Ubuntu/Debian only)
-if [ "$PKG_MANAGER" = "apt" ]; then
-    if ! update-alternatives --list php &>/dev/null; then
-        status_installing "Configuring PHP CLI alternatives"
-        for version in "${PHP_VERSIONS[@]}"; do
-            sudo update-alternatives --install /usr/bin/php php /usr/bin/php$version ${version/./}
-        done
-        sudo update-alternatives --set php /usr/bin/php${PHP_VERSIONS[-1]/./}
-        status_done "PHP CLI alternatives configured"
+# ── PHP CLI alternatives (apt only) ─────────────────────────
+if [[ "$PKG_MANAGER" == "apt" ]]; then
+    if update-alternatives --list php &>/dev/null; then
+        status_skipped "PHP CLI alternatives (already configured)"
     else
-        status_skipped "PHP CLI alternatives"
+        log "Configuring PHP CLI alternatives..."
+        for version in "${PHP_VERSIONS_ARR[@]}"; do
+            sudo update-alternatives --install /usr/bin/php php \
+                "/usr/bin/php${version}" "${version//./}" &>/dev/null
+        done
+        # Set the last (highest) version as default
+        local latest="${PHP_VERSIONS_ARR[-1]}"
+        sudo update-alternatives --set php "/usr/bin/php${latest}" &>/dev/null
+        success "PHP CLI default → php${latest}"
     fi
 fi
+
+# ── Internal helper ──────────────────────────────────────────
+_php_install_version() {
+    local ver="$1"
+    case "$PKG_MANAGER" in
+        apt)
+            pkg_install \
+                "php${ver}" "php${ver}-fpm" "php${ver}-cli" "php${ver}-mysql" \
+                "php${ver}-mbstring" "php${ver}-xml" "php${ver}-curl" \
+                "php${ver}-zip" "php${ver}-bcmath" "php${ver}-intl" \
+                "php${ver}-readline"
+            ;;
+        dnf)
+            pkg_install php php-fpm php-cli php-mysqlnd php-mbstring \
+                        php-xml php-curl php-zip php-bcmath php-intl
+            ;;
+        pacman)
+            pkg_install php php-fpm php-intl php-mbstring \
+                        php-curl php-xml php-zip php-bcmath
+            ;;
+    esac
+}

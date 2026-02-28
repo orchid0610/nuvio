@@ -1,20 +1,31 @@
 #!/usr/bin/env bash
+# ============================================================
+#  modules/services/mysql.sh — MySQL / MariaDB install
+# ============================================================
 
-[[ "$MYSQL_INSTALL" == true ]] || { status_skipped "MySQL module"; return; }
+section "MySQL"
 
-# Package names per distro
+if [[ "$MYSQL_INSTALL" != "true" ]]; then
+    status_skipped "MySQL (disabled in config)"
+    return
+fi
+
 case "$PKG_MANAGER" in
-    apt) MYSQL_PKG="mysql-server" ;;
-    dnf) MYSQL_PKG="mysql-server" ;;
-    pacman) MYSQL_PKG="mariadb" ;;
+    apt|dnf) _mysql_pkg="mysql-server" ;;
+    pacman)  _mysql_pkg="mariadb" ;;
 esac
 
-if is_installed "$MYSQL_PKG"; then
-    status_skipped "MySQL"
+if pkg_installed "$_mysql_pkg"; then
+    status_skipped "MySQL (already installed)"
 else
-    status_installing "Installing MySQL Server"
-    install_pkg "$MYSQL_PKG"
-    sudo systemctl enable mysql || sudo systemctl enable mariadb
-    sudo systemctl start mysql || sudo systemctl start mariadb
+    run_quiet "Installing MySQL Server" pkg_install "$_mysql_pkg"
+
+    # Enable whichever service name exists
+    if systemctl list-unit-files | grep -q "mysql.service"; then
+        sudo systemctl enable --now mysql &>/dev/null
+    else
+        sudo systemctl enable --now mariadb &>/dev/null
+    fi
+
     status_done "MySQL Server"
 fi

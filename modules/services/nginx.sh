@@ -1,22 +1,27 @@
 #!/usr/bin/env bash
+# ============================================================
+#  modules/services/nginx.sh — Nginx install & basic config
+# ============================================================
 
-[[ "$NGINX_INSTALL" == true ]] || { status_skipped "Nginx module"; return; }
+section "Nginx"
 
-if is_installed nginx; then
-    status_skipped "Nginx"
+if [[ "$NGINX_INSTALL" != "true" ]]; then
+    status_skipped "Nginx (disabled in config)"
+    return
+fi
+
+if pkg_installed nginx; then
+    status_skipped "Nginx (already installed)"
 else
-    status_installing "Installing Nginx"
-    install_pkg nginx
-    sudo systemctl enable nginx
-    sudo systemctl start nginx
+    run_quiet "Installing Nginx" pkg_install nginx
+    sudo systemctl enable --now nginx &>/dev/null
     status_done "Nginx"
 fi
 
-# Disable default site (mostly Debian/Ubuntu)
-if [ -f /etc/nginx/sites-enabled/default ]; then
-    status_installing "Removing default Nginx site"
+# Remove default site (Debian/Ubuntu)
+if [[ -f /etc/nginx/sites-enabled/default ]]; then
     sudo rm -f /etc/nginx/sites-enabled/default
-    status_done "Default Nginx site removed"
+    success "Default Nginx site removed"
 else
-    status_skipped "Default Nginx site"
+    status_skipped "Default Nginx site (not present)"
 fi
