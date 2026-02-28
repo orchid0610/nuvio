@@ -14,6 +14,7 @@ prompt_user() {
 
     prompt_input USERNAME    "Linux username"   "$default_user"
     prompt_input ROOT_FOLDER "Projects folder"  "www"
+    prompt_input MYSQL_ROOT_PASSWORD "MySQL root password" "root"
     echo ""
 
     # Validate username exists on the system
@@ -24,7 +25,7 @@ prompt_user() {
     USER_HOME="/home/$USERNAME"
     ROOT_PATH="$USER_HOME/$ROOT_FOLDER"
 
-    export USERNAME ROOT_FOLDER USER_HOME ROOT_PATH
+    export USERNAME ROOT_FOLDER USER_HOME ROOT_PATH MYSQL_ROOT_PASSWORD
 }
 
 config_load() {

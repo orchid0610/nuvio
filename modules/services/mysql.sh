@@ -29,3 +29,20 @@ else
 
     status_done "MySQL Server"
 fi
+
+# ── Root password auth fix ───────────────────────────────────
+# Fresh Ubuntu/Debian installs use unix_socket auth by default,
+# which blocks phpMyAdmin from connecting with a password.
+# This switches root to mysql_native_password.
+log "Configuring MySQL root authentication..."
+if sudo mysql -e "SELECT 1;" &>/dev/null; then
+    sudo mysql -e "
+        ALTER USER 'root'@'localhost'
+            IDENTIFIED WITH mysql_native_password
+            BY '${MYSQL_ROOT_PASSWORD}';
+        FLUSH PRIVILEGES;
+    " &>/dev/null && success "MySQL root auth set (password login enabled)" \
+                  || warn "Could not update MySQL root auth — check manually"
+else
+    warn "Could not connect to MySQL as root — skipping auth config"
+fi

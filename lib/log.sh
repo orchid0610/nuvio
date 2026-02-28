@@ -112,6 +112,7 @@ run_quiet() {
 
 # prompt_input <VAR> <label> <default>
 # Prints a styled prompt and stores result in VAR.
+# If label contains "password", input is hidden.
 prompt_input() {
     local -n _ref=$1
     local label="$2"
@@ -120,8 +121,15 @@ prompt_input() {
     local hint=""
     [[ -n "$default" ]] && hint="${DIM} (default: ${default})${RESET}"
 
-    printf "  ${CYAN}?${RESET}  ${BOLD}%-20s${RESET}${hint}  " "$label"
-    read -r _ref
+    printf "  ${CYAN}?${RESET}  ${BOLD}%-22s${RESET}${hint}  " "$label"
+
+    # Mask input for password fields
+    if [[ "${label,,}" == *"password"* ]]; then
+        read -rs _ref
+        echo ""
+    else
+        read -r _ref
+    fi
 
     # Use default if empty
     [[ -z "$_ref" && -n "$default" ]] && _ref="$default"
