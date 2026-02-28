@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nuvio — Web Dev Environment Installer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #080c12;
+    --bg2:       #0d1520;
+    --bg3:       #111e2e;
+    --border:    rgba(100,180,255,0.08);
+    --cyan:      #00e5ff;
+    --cyan-dim:  rgba(0,229,255,0.12);
+    --cyan-mid:  rgba(0,229,255,0.35);
+    --green:     #00ff9d;
+    --text:      #c8d8ea;
+    --text-dim:  #5a7a99;
+    --text-mute: #2a3f55;
+    --heading:   #eaf4ff;
+    --red:       #ff4d6a;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+
+  /* ── Scanline texture overlay ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.04) 2px,
+      rgba(0,0,0,0.04) 4px
+    );
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  /* ── Ambient glow blobs ── */
+  .blob {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(120px);
+    opacity: 0.15;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .blob-1 {
+    width: 600px; height: 600px;
+    background: var(--cyan);
+    top: -200px; left: -200px;
+    animation: drift 18s ease-in-out infinite alternate;
+  }
+  .blob-2 {
+    width: 500px; height: 500px;
+    background: #0050ff;
+    bottom: 0; right: -150px;
+    animation: drift 22s ease-in-out infinite alternate-reverse;
+  }
+  .blob-3 {
+    width: 300px; height: 300px;
+    background: var(--green);
+    top: 50%; left: 50%;
+    opacity: 0.07;
+    animation: drift 14s ease-in-out infinite alternate;
+  }
+  @keyframes drift {
+    from { transform: translate(0, 0) scale(1); }
+    to   { transform: translate(40px, 30px) scale(1.1); }
+  }
+
+  /* ── Layout ── */
+  .wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 2rem;
+  }
+
+  /* ── Nav ── */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 50;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    background: rgba(8,12,18,0.7);
+    border-bottom: 1px solid var(--border);
+  }
+  nav .wrap {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 60px;
+  }
+  .nav-logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 1.2rem;
+    color: var(--heading);
+    letter-spacing: 0.05em;
+    text-decoration: none;
+  }
+  .nav-logo span { color: var(--cyan); }
+  .nav-links {
+    display: flex;
+    gap: 2rem;
+    list-style: none;
+  }
+  .nav-links a {
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--cyan); }
+  .nav-gh {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-dim) !important;
+    transition: border-color 0.2s, color 0.2s !important;
+  }
+  .nav-gh:hover {
+    border-color: var(--cyan-mid) !important;
+    color: var(--cyan) !important;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    padding: 160px 0 100px;
+    text-align: center;
+  }
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 1rem;
+    background: var(--cyan-dim);
+    border: 1px solid var(--cyan-mid);
+    border-radius: 100px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--cyan);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 2rem;
+    animation: fadeUp 0.6s ease both;
+  }
+  .badge-dot {
+    width: 6px; height: 6px;
+    background: var(--cyan);
+    border-radius: 50%;
+    animation: pulse 2s ease infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.4; transform: scale(0.7); }
+  }
+
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: clamp(3rem, 7vw, 5.5rem);
+    line-height: 1.05;
+    color: var(--heading);
+    letter-spacing: -0.03em;
+    margin-bottom: 1.5rem;
+    animation: fadeUp 0.6s 0.1s ease both;
+  }
+  h1 em {
+    font-style: normal;
+    color: var(--cyan);
+    position: relative;
+  }
+  h1 em::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0;
+    bottom: -4px;
+    height: 2px;
+    background: linear-gradient(90deg, var(--cyan), transparent);
+  }
+
+  .hero-sub {
+    font-size: 1.15rem;
+    color: var(--text-dim);
+    max-width: 520px;
+    margin: 0 auto 3rem;
+    font-weight: 300;
+    animation: fadeUp 0.6s 0.2s ease both;
+  }
+
+  /* ── Install box ── */
+  .install-box {
+    display: inline-flex;
+    align-items: center;
+    gap: 1rem;
+    background: var(--bg2);
+    border: 1px solid rgba(0,229,255,0.2);
+    border-radius: 12px;
+    padding: 1rem 1.25rem 1rem 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 0 40px rgba(0,229,255,0.06), inset 0 1px 0 rgba(255,255,255,0.04);
+    animation: fadeUp 0.6s 0.3s ease both;
+    position: relative;
+    overflow: hidden;
+  }
+  .install-box::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(0,229,255,0.03) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .install-cmd {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--heading);
+    white-space: nowrap;
+    letter-spacing: 0.01em;
+  }
+  .install-cmd .prompt { color: var(--cyan); user-select: none; }
+  .install-cmd .cmd-curl { color: var(--text-dim); }
+  .install-cmd .cmd-url { color: var(--green); }
+  .install-cmd .cmd-pipe { color: var(--text-dim); }
+  .copy-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.9rem;
+    background: var(--cyan-dim);
+    border: 1px solid var(--cyan-mid);
+    border-radius: 7px;
+    color: var(--cyan);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background 0.2s, box-shadow 0.2s;
+    white-space: nowrap;
+    letter-spacing: 0.04em;
+  }
+  .copy-btn:hover {
+    background: rgba(0,229,255,0.2);
+    box-shadow: 0 0 16px rgba(0,229,255,0.2);
+  }
+  .copy-btn.copied {
+    background: rgba(0,255,157,0.12);
+    border-color: rgba(0,255,157,0.4);
+    color: var(--green);
+  }
+
+  .hero-note {
+    font-size: 0.8rem;
+    color: var(--text-mute);
+    font-family: 'JetBrains Mono', monospace;
+    animation: fadeUp 0.6s 0.4s ease both;
+  }
+  .hero-note span { color: var(--text-dim); }
+
+  /* ── Terminal preview ── */
+  .terminal-wrap {
+    margin: 5rem 0;
+    animation: fadeUp 0.8s 0.5s ease both;
+  }
+  .terminal {
+    background: #060a0f;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 40px 100px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,229,255,0.04);
+  }
+  .terminal-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.9rem 1.25rem;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+  }
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .dot-r { background: #ff5f57; }
+  .dot-y { background: #febc2e; }
+  .dot-g { background: #28c840; }
+  .terminal-title {
+    flex: 1;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-mute);
+    letter-spacing: 0.05em;
+  }
+  .terminal-body {
+    padding: 1.75rem 2rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    line-height: 1.9;
+  }
+  .t-cyan   { color: var(--cyan); }
+  .t-green  { color: var(--green); }
+  .t-yellow { color: #ffd166; }
+  .t-dim    { color: var(--text-mute); }
+  .t-white  { color: var(--heading); }
+  .t-red    { color: var(--red); }
+  .t-bold   { font-weight: 600; }
+  .t-line   { display: block; }
+  .t-indent { padding-left: 1.5rem; }
+
+  /* ── Section titles ── */
+  .section { padding: 5rem 0; }
+  .section-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--cyan);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 0.75rem;
+  }
+  .section-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: clamp(1.8rem, 3.5vw, 2.5rem);
+    color: var(--heading);
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    margin-bottom: 1rem;
+  }
+  .section-sub {
+    color: var(--text-dim);
+    font-size: 1rem;
+    max-width: 480px;
+    font-weight: 300;
+  }
+
+  /* ── Features grid ── */
+  .features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    margin-top: 3rem;
+  }
+  .feature {
+    background: var(--bg);
+    padding: 2rem;
+    transition: background 0.25s;
+    position: relative;
+  }
+  .feature:hover { background: var(--bg2); }
+  .feature::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 2rem; right: 2rem;
+    height: 1px;
+    background: var(--border);
+  }
+  .feature-icon {
+    width: 42px; height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--cyan-dim);
+    border: 1px solid var(--cyan-mid);
+    border-radius: 10px;
+    font-size: 1.1rem;
+    margin-bottom: 1.25rem;
+  }
+  .feature h3 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--heading);
+    margin-bottom: 0.5rem;
+    letter-spacing: -0.01em;
+  }
+  .feature p {
+    font-size: 0.875rem;
+    color: var(--text-dim);
+    line-height: 1.6;
+    font-weight: 300;
+  }
+
+  /* ── Stack section ── */
+  .stack-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-top: 3rem;
+  }
+  .stack-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    transition: border-color 0.2s, transform 0.2s;
+    cursor: default;
+  }
+  .stack-item:hover {
+    border-color: var(--cyan-mid);
+    transform: translateY(-2px);
+  }
+  .stack-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+  }
+  .stack-info h4 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--heading);
+    margin-bottom: 0.1rem;
+  }
+  .stack-info p {
+    font-size: 0.75rem;
+    color: var(--text-mute);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* ── How it works ── */
+  .steps {
+    margin-top: 3rem;
+    position: relative;
+  }
+  .steps::before {
+    content: '';
+    position: absolute;
+    left: 20px;
+    top: 24px;
+    bottom: 24px;
+    width: 1px;
+    background: linear-gradient(180deg, var(--cyan-mid), transparent);
+  }
+  .step {
+    display: flex;
+    gap: 1.75rem;
+    padding: 0 0 2.5rem;
+    position: relative;
+  }
+  .step:last-child { padding-bottom: 0; }
+  .step-num {
+    flex-shrink: 0;
+    width: 40px; height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg2);
+    border: 1px solid var(--cyan-mid);
+    border-radius: 50%;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--cyan);
+    font-weight: 600;
+    position: relative;
+    z-index: 1;
+  }
+  .step-content { padding-top: 0.5rem; }
+  .step-content h4 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    color: var(--heading);
+    margin-bottom: 0.35rem;
+    font-size: 1rem;
+  }
+  .step-content p {
+    color: var(--text-dim);
+    font-size: 0.875rem;
+    font-weight: 300;
+  }
+  .step-content code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--cyan);
+    background: var(--cyan-dim);
+    padding: 0.1em 0.45em;
+    border-radius: 4px;
+  }
+
+  /* ── CTA ── */
+  .cta-section {
+    padding: 6rem 0;
+    text-align: center;
+  }
+  .cta-box {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4rem 3rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .cta-box::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 50%; transform: translateX(-50%);
+    width: 400px; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cyan-mid), transparent);
+  }
+  .cta-box h2 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: clamp(1.8rem, 4vw, 3rem);
+    color: var(--heading);
+    letter-spacing: -0.02em;
+    margin-bottom: 1rem;
+  }
+  .cta-box p {
+    color: var(--text-dim);
+    font-size: 1rem;
+    max-width: 420px;
+    margin: 0 auto 2.5rem;
+    font-weight: 300;
+  }
+  .btn-row {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.8rem 1.75rem;
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 0.9rem;
+    text-decoration: none;
+    transition: all 0.2s;
+    letter-spacing: 0.01em;
+  }
+  .btn-primary {
+    background: var(--cyan);
+    color: #060a0f;
+    border: 1px solid var(--cyan);
+  }
+  .btn-primary:hover {
+    background: #33ecff;
+    box-shadow: 0 0 30px rgba(0,229,255,0.4);
+    transform: translateY(-1px);
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover {
+    border-color: var(--cyan-mid);
+    color: var(--cyan);
+    transform: translateY(-1px);
+  }
+
+  /* ── Footer ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 2rem 0;
+  }
+  footer .wrap {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  .footer-logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 1rem;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+  }
+  .footer-logo span { color: var(--cyan); }
+  footer p {
+    font-size: 0.8rem;
+    color: var(--text-mute);
+  }
+  footer a {
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 0.8rem;
+    transition: color 0.2s;
+  }
+  footer a:hover { color: var(--cyan); }
+
+  /* ── Animations ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 640px) {
+    .nav-links { display: none; }
+    .install-box { flex-direction: column; align-items: flex-start; }
+    .install-cmd { font-size: 0.75rem; white-space: normal; word-break: break-all; }
+    .cta-box { padding: 2.5rem 1.5rem; }
+    .steps::before { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="blob blob-1"></div>
+<div class="blob blob-2"></div>
+<div class="blob blob-3"></div>
+
+<!-- Nav -->
+<nav>
+  <div class="wrap">
+    <a href="#" class="nav-logo">nu<span>v</span>io</a>
+    <ul class="nav-links">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#stack">Stack</a></li>
+      <li><a href="#how">How it works</a></li>
+      <li>
+        <a href="https://github.com/orchid0610/nuvio" target="_blank" class="nav-gh">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+          GitHub
+        </a>
+      </li>
+    </ul>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-badge">
+      <span class="badge-dot"></span>
+      Open source · Linux · Bash
+    </div>
+
+    <h1>Your dev environment,<br><em>zero friction.</em></h1>
+
+    <p class="hero-sub">
+      One command sets up your complete web development environment on any Linux distro.
+      Nginx, PHP, MySQL — configured exactly the way you like it.
+    </p>
+
+    <div class="install-box">
+      <div class="install-cmd">
+        <span class="prompt">$ </span><span class="cmd-curl">curl -fsSL </span><span class="cmd-url">https://raw.githubusercontent.com/orchid0610/nuvio/main/bootstrap.sh</span><span class="cmd-pipe"> | bash</span>
+      </div>
+      <button class="copy-btn" onclick="copyInstall(this)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        copy
+      </button>
+    </div>
+
+    <p class="hero-note">Works on <span>Ubuntu · Debian · Fedora · Arch</span></p>
+  </div>
+</section>
+
+<!-- Terminal preview -->
+<div class="wrap">
+  <div class="terminal-wrap reveal">
+    <div class="terminal">
+      <div class="terminal-bar">
+        <span class="dot dot-r"></span>
+        <span class="dot dot-y"></span>
+        <span class="dot dot-g"></span>
+        <span class="terminal-title">nuvio — install.sh</span>
+      </div>
+      <div class="terminal-body">
+        <span class="t-line t-bold t-cyan">  ███╗   ██╗██╗   ██╗██╗   ██╗██╗ ██████╗</span>
+        <span class="t-line t-cyan">  ████╗  ██║██║   ██║██║   ██║██║██╔═══██╗</span>
+        <span class="t-line t-cyan">  ██╔██╗ ██║██║   ██║██║   ██║██║██║   ██║</span>
+        <span class="t-line t-cyan">  ██║╚██╗██║██║   ██║╚██╗ ██╔╝██║██║   ██║</span>
+        <span class="t-line t-cyan">  ██║ ╚████║╚██████╔╝ ╚████╔╝ ██║╚██████╔╝</span>
+        <span class="t-line t-cyan">  ╚═╝  ╚═══╝ ╚═════╝   ╚═══╝  ╚═╝ ╚═════╝</span>
+        <span class="t-line t-dim">  Web Development Environment Installer</span>
+        <span class="t-line">&nbsp;</span>
+        <span class="t-line"><span class="t-cyan t-bold">  ┌─ Setup ───────────────────────────────────────┐</span></span>
+        <span class="t-line"><span class="t-cyan">  ?</span>  <span class="t-white">Linux username      </span><span class="t-dim">(default: orchid)</span>  <span class="t-green">orchid</span></span>
+        <span class="t-line"><span class="t-cyan">  ?</span>  <span class="t-white">Projects folder     </span><span class="t-dim">(default: www)</span>  <span class="t-green">www</span></span>
+        <span class="t-line"><span class="t-cyan">  ?</span>  <span class="t-white">MySQL root password  </span><span class="t-dim">(default: 1234)</span>  <span class="t-green">••••</span></span>
+        <span class="t-line">&nbsp;</span>
+        <span class="t-line"><span class="t-cyan">  ?</span>  <span class="t-white">Everything look good? Start install</span>  <span class="t-dim">[Y/n]</span>  <span class="t-green">Y</span></span>
+        <span class="t-line">&nbsp;</span>
+        <span class="t-line"><span class="t-cyan t-bold">  ┌─ PHP ──────────────────────────────────────────┐</span></span>
+        <span class="t-line"><span class="t-green">  ✔</span>  Installing PHP 8.1 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="t-dim">done</span></span>
+        <span class="t-line"><span class="t-green">  ✔</span>  Installing PHP 8.2 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="t-dim">done</span></span>
+        <span class="t-line"><span class="t-green">  ✔</span>  Installing PHP 8.3 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="t-dim">done</span></span>
+        <span class="t-line">&nbsp;</span>
+        <span class="t-line"><span class="t-cyan t-bold">  ┌─────────────────────────────────────────────┐</span></span>
+        <span class="t-line"><span class="t-green t-bold">  │          Environment Ready  ✔               │</span></span>
+        <span class="t-line"><span class="t-green">  │</span>  <span class="t-white">PHP</span>           <span class="t-dim">→</span>  <span class="t-green">8.1 8.2 8.3</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="t-green">│</span></span>
+        <span class="t-line"><span class="t-green">  │</span>  <span class="t-white">Nginx</span>         <span class="t-dim">→</span>  <span class="t-green">http://localhost</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="t-green">│</span></span>
+        <span class="t-line"><span class="t-green">  │</span>  <span class="t-white">MySQL</span>         <span class="t-dim">→</span>  <span class="t-green">root / 1234</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="t-green">│</span></span>
+        <span class="t-line"><span class="t-green">  │</span>  <span class="t-white">phpMyAdmin</span>    <span class="t-dim">→</span>  <span class="t-green">http://phpmyadmin.test</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="t-green">│</span></span>
+        <span class="t-line"><span class="t-green t-bold">  └─────────────────────────────────────────────┘</span></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Features -->
+<section class="section" id="features">
+  <div class="wrap">
+    <div class="reveal">
+      <p class="section-label">Features</p>
+      <h2 class="section-title">Everything you need,<br>nothing you don't.</h2>
+      <p class="section-sub">Built for developers who distro-hop and hate spending hours reconfiguring their environment.</p>
+    </div>
+    <div class="features reveal">
+      <div class="feature">
+        <div class="feature-icon">⚡</div>
+        <h3>One command install</h3>
+        <p>A single curl command clones the repo and runs the full setup. No manual steps, no config files to edit first.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🎛️</div>
+        <h3>Interactive prompts</h3>
+        <p>Asks for your username, project folder, and MySQL password at runtime. No hardcoded values, no editing configs.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🐧</div>
+        <h3>Distro agnostic</h3>
+        <p>Detects your package manager automatically. Works with apt, dnf, and pacman — Ubuntu, Fedora, Arch, all covered.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🔢</div>
+        <h3>Multi-version PHP</h3>
+        <p>Installs PHP 8.1, 8.2, and 8.3 side by side. Configures CLI alternatives so you can switch versions any time.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🧩</div>
+        <h3>Modular by design</h3>
+        <p>Each tool lives in its own module file. Toggle anything on or off in settings.env, or drop in new modules effortlessly.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🌐</div>
+        <h3>new-site CLI</h3>
+        <p>Scaffold a local .test domain with one command. Creates the Nginx vhost, enables it, and updates /etc/hosts automatically.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Stack -->
+<section class="section" id="stack">
+  <div class="wrap">
+    <div class="reveal">
+      <p class="section-label">Stack</p>
+      <h2 class="section-title">What gets installed</h2>
+      <p class="section-sub">A carefully chosen set of tools for modern PHP web development.</p>
+    </div>
+    <div class="stack-grid reveal">
+      <div class="stack-item">
+        <span class="stack-icon">🟢</span>
+        <div class="stack-info">
+          <h4>Nginx</h4>
+          <p>web server</p>
+        </div>
+      </div>
+      <div class="stack-item">
+        <span class="stack-icon">🐘</span>
+        <div class="stack-info">
+          <h4>PHP 8.1 – 8.3</h4>
+          <p>multi-version + FPM</p>
+        </div>
+      </div>
+      <div class="stack-item">
+        <span class="stack-icon">🐬</span>
+        <div class="stack-info">
+          <h4>MySQL</h4>
+          <p>database server</p>
+        </div>
+      </div>
+      <div class="stack-item">
+        <span class="stack-icon">🛠️</span>
+        <div class="stack-info">
+          <h4>phpMyAdmin</h4>
+          <p>db management UI</p>
+        </div>
+      </div>
+      <div class="stack-item">
+        <span class="stack-icon">⚙️</span>
+        <div class="stack-info">
+          <h4>new-site</h4>
+          <p>local vhost CLI</p>
+        </div>
+      </div>
+      <div class="stack-item">
+        <span class="stack-icon">🔧</span>
+        <div class="stack-info">
+          <h4>PHP Extensions</h4>
+          <p>mysql, curl, zip, mbstring…</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- How it works -->
+<section class="section" id="how">
+  <div class="wrap" style="display:grid;grid-template-columns:1fr 1fr;gap:5rem;align-items:start;">
+    <div class="reveal">
+      <p class="section-label">How it works</p>
+      <h2 class="section-title">From fresh install<br>to coding in minutes.</h2>
+      <p class="section-sub">Nuvio handles everything — package manager detection, service configuration, and cleanup — so you don't have to.</p>
+    </div>
+    <div class="steps reveal">
+      <div class="step">
+        <div class="step-num">01</div>
+        <div class="step-content">
+          <h4>Run the bootstrap</h4>
+          <p>The <code>curl | bash</code> command downloads and runs bootstrap.sh, which clones the full repo to <code>~/.nuvio</code>.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <div class="step-content">
+          <h4>Answer the prompts</h4>
+          <p>Enter your Linux username, projects folder name, and MySQL root password. Hit enter to accept the defaults.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <div class="step-content">
+          <h4>Confirm and sit back</h4>
+          <p>Review the summary and confirm. Nuvio installs and configures everything with clean progress output.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">04</div>
+        <div class="step-content">
+          <h4>Start building</h4>
+          <p>Use <code>sudo new-site myapp</code> to scaffold your first local project at <code>myapp.test</code> instantly.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="wrap">
+    <div class="cta-box reveal">
+      <h2>Ready to never configure<br>your env again?</h2>
+      <p>Open source, free forever. One command away on any Linux machine.</p>
+      <div class="btn-row">
+        <a href="https://github.com/orchid0610/nuvio" target="_blank" class="btn btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+          View on GitHub
+        </a>
+        <a href="#" class="btn btn-ghost" onclick="copyInstall(this); return false;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          Copy install command
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="wrap">
+    <span class="footer-logo">nu<span>v</span>io</span>
+    <p>Built by <a href="https://github.com/orchid0610" target="_blank">orchid0610</a></p>
+    <a href="https://github.com/orchid0610/nuvio" target="_blank">github.com/orchid0610/nuvio</a>
+  </div>
+</footer>
+
+<script>
+  // ── Copy install command ──
+  const INSTALL_CMD = 'curl -fsSL https://raw.githubusercontent.com/orchid0610/nuvio/main/bootstrap.sh | bash';
+
+  function copyInstall(btn) {
+    navigator.clipboard.writeText(INSTALL_CMD).then(() => {
+      const original = btn.innerHTML;
+      btn.classList.add('copied');
+      btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> copied!`;
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.innerHTML = original;
+      }, 2000);
+    });
+  }
+
+  // ── Scroll reveal ──
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((e, i) => {
+      if (e.isIntersecting) {
+        e.target.style.transitionDelay = `${i * 0.08}s`;
+        e.target.classList.add('visible');
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+</script>
+</body>
+</html>
