@@ -22,7 +22,7 @@ else
     status_done "MySQL Server"
 fi
 
-# Enable service -- check name without letting grep exit code kill the script
+# Enable service
 _mysql_svc=""
 if systemctl list-unit-files 2>/dev/null | grep -q "^mysql.service"; then
     _mysql_svc="mysql"
@@ -34,34 +34,53 @@ if [[ -n "$_mysql_svc" ]]; then
     sudo systemctl enable --now "$_mysql_svc" &>/dev/null || true
 fi
 
-# ── Wait for MySQL to be ready ───────────────────────────────
-# Service can take a few seconds to accept connections after start.
+# ── Wait for MySQL socket to be ready ────────────────────────
 log "Waiting for MySQL to be ready..."
 _mysql_ready=false
-for _i in 1 2 3 4 5 6 7 8 9 10; do
-    if sudo mysql -e "SELECT 1;" &>/dev/null; then
+for _i in $(seq 1 15); do
+    # Try both common socket locations
+    if sudo mysqladmin ping --silent 2>/dev/null; then
         _mysql_ready=true
         break
     fi
     sleep 2
 done
 
+if [[ "$_mysql_ready" != "true" ]]; then
+    warn "MySQL did not respond to ping -- skipping auth config"
+    warn "Run manually once MySQL is up:"
+    warn "  sudo mysql -e \"ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${MYSQL_ROOT_PASSWORD}'; FLUSH PRIVILEGES;\""
+    return
+fi
+
 # ── Root password auth fix ───────────────────────────────────
-# Fresh Ubuntu/Debian installs use unix_socket auth by default,
-# which blocks phpMyAdmin from connecting with a password.
-# This switches root to mysql_native_password.
-if [[ "$_mysql_ready" == "true" ]]; then
+# Determine the current auth plugin for root
+_current_plugin=$(sudo mysql -N -e \
+    "SELECT plugin FROM mysql.user WHERE User='root' AND Host='localhost';" \
+    2>/dev/null || echo "unknown")
+
+log "Current root auth plugin: ${_current_plugin}"
+
+if [[ "$_current_plugin" == "mysql_native_password" ]]; then
+    # Already using password auth -- just update the password
+    if sudo mysql -e \
+        "ALTER USER 'root'@'localhost' IDENTIFIED BY '${MYSQL_ROOT_PASSWORD}'; FLUSH PRIVILEGES;" \
+        &>/dev/null; then
+        success "MySQL root password updated"
+    else
+        warn "Could not update MySQL root password"
+    fi
+else
+    # Switch from unix_socket / auth_socket / caching_sha2 to native password
     if sudo mysql -e "
         ALTER USER 'root'@'localhost'
             IDENTIFIED WITH mysql_native_password
             BY '${MYSQL_ROOT_PASSWORD}';
         FLUSH PRIVILEGES;
     " &>/dev/null; then
-        success "MySQL root auth configured"
+        success "MySQL root auth configured (native password)"
     else
-        warn "Could not update MySQL root auth -- run manually if needed"
+        warn "Could not update MySQL root auth -- try manually:"
+        warn "  sudo mysql -e \"ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${MYSQL_ROOT_PASSWORD}'; FLUSH PRIVILEGES;\""
     fi
-else
-    warn "MySQL did not become ready in time -- run this manually:"
-    warn "sudo mysql -e \"ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'your_password'; FLUSH PRIVILEGES;\""
 fi
