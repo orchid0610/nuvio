@@ -1,11 +1,11 @@
-# new_env
+# nuvio
 
 One-command web development environment setup for fresh Linux installs.
 
 ## Quick install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YOUR_USER/new_env/main/bootstrap.sh | bash
+curl -fsSL https://raw.githubusercontent.com/orchid0610/nuvio/main/bootstrap.sh | bash
 ```
 
 ## What it sets up
@@ -21,8 +21,7 @@ curl -fsSL https://raw.githubusercontent.com/YOUR_USER/new_env/main/bootstrap.sh
 Edit `config/settings.env` before running:
 
 ```env
-USERNAME=orchid
-ROOT_FOLDER=www
+
 
 NGINX_INSTALL=true
 MYSQL_INSTALL=true
