@@ -30,7 +30,9 @@ log "MySQL root : $MYSQL_ROOT_PASSWORD"
 echo -e "  ${DIM}┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄${RESET}"
 echo ""
 
-confirm "Everything look good? Start install" || { echo ""; log "Aborted."; echo ""; exit 0; }
+if ! confirm "Everything look good? Start install"; then
+    echo ""; log "Aborted."; echo ""; exit 0
+fi
 echo ""
 
 mkdir -p "$ROOT_PATH"

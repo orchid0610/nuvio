@@ -1,24 +1,28 @@
 #!/usr/bin/env bash
 # ============================================================
-#  lib/config.sh — load settings.env + prompt for user info
+#  lib/config.sh -- load settings.env + prompt for user info
 #  Requires: lib/log.sh
 # ============================================================
 
-# Interactive prompts for username and project folder.
-# Called before config_load so values are available globally.
+# Interactive prompts for username, project folder, MySQL password.
+# Uses plain locals to avoid nameref issues under set -euo pipefail.
 prompt_user() {
     section "Setup"
 
-    # Suggest the current logged-in user as default
     local default_user="${SUDO_USER:-$USER}"
+    local _u _f _p
 
-    prompt_input USERNAME    "Linux username"   "$default_user"
-    prompt_input ROOT_FOLDER "Projects folder"  "www"
-    prompt_input MYSQL_ROOT_PASSWORD "MySQL root password" "root"
+    prompt_input _u "Linux username"      "$default_user"
+    prompt_input _f "Projects folder"     "www"
+    prompt_input _p "MySQL root password" "1234"
+
+    USERNAME="$_u"
+    ROOT_FOLDER="$_f"
+    MYSQL_ROOT_PASSWORD="$_p"
     echo ""
 
-    # Validate username exists on the system
-    if ! id "$USERNAME" &>/dev/null; then
+    # Validate username exists -- subshell prevents set -e from firing
+    if ! ( id "$USERNAME" &>/dev/null ); then
         error "User '$USERNAME' does not exist on this system."
     fi
 

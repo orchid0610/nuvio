@@ -112,11 +112,13 @@ run_quiet() {
 
 # prompt_input <VAR> <label> <default>
 # Prints a styled prompt and stores result in VAR.
-# If label contains "password", input is hidden.
+# If label contains "password", input is masked.
+# Uses printf -v to avoid nameref issues under set -euo pipefail.
 prompt_input() {
-    local -n _ref=$1
+    local _var="$1"
     local label="$2"
     local default="$3"
+    local _val=""
 
     local hint=""
     [[ -n "$default" ]] && hint="${DIM} (default: ${default})${RESET}"
@@ -125,21 +127,26 @@ prompt_input() {
 
     # Mask input for password fields
     if [[ "${label,,}" == *"password"* ]]; then
-        read -rs _ref
+        read -rs _val || true
         echo ""
     else
-        read -r _ref
+        read -r _val || true
     fi
 
-    # Use default if empty
-    [[ -z "$_ref" && -n "$default" ]] && _ref="$default"
+    # Fall back to default if empty
+    [[ -z "$_val" ]] && _val="$default"
+
+    # Assign to caller's variable
+    printf -v "$_var" '%s' "$_val"
 }
 
 # confirm <message>  — returns 0 for yes, 1 for no
 confirm() {
     printf "  ${CYAN}?${RESET}  ${BOLD}$*${RESET}  ${DIM}[Y/n]${RESET}  "
-    read -r _ans
-    [[ "${_ans,,}" != "n" ]]
+    local _ans=""
+    read -r _ans || true
+    [[ "${_ans,,}" != "n" ]] || return 1
+    return 0
 }
 
 # ── Summary box (printed at the end) ─────────────────────────
