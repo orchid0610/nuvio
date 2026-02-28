@@ -34,13 +34,23 @@ if [[ -n "$_mysql_svc" ]]; then
     sudo systemctl enable --now "$_mysql_svc" &>/dev/null || true
 fi
 
+# ── Wait for MySQL to be ready ───────────────────────────────
+# Service can take a few seconds to accept connections after start.
+log "Waiting for MySQL to be ready..."
+_mysql_ready=false
+for _i in 1 2 3 4 5 6 7 8 9 10; do
+    if sudo mysql -e "SELECT 1;" &>/dev/null; then
+        _mysql_ready=true
+        break
+    fi
+    sleep 2
+done
+
 # ── Root password auth fix ───────────────────────────────────
 # Fresh Ubuntu/Debian installs use unix_socket auth by default,
 # which blocks phpMyAdmin from connecting with a password.
 # This switches root to mysql_native_password.
-log "Configuring MySQL root authentication..."
-
-if sudo mysql -e "SELECT 1;" &>/dev/null; then
+if [[ "$_mysql_ready" == "true" ]]; then
     if sudo mysql -e "
         ALTER USER 'root'@'localhost'
             IDENTIFIED WITH mysql_native_password
@@ -52,5 +62,6 @@ if sudo mysql -e "SELECT 1;" &>/dev/null; then
         warn "Could not update MySQL root auth -- run manually if needed"
     fi
 else
-    warn "Could not connect to MySQL -- skipping auth config"
+    warn "MySQL did not become ready in time -- run this manually:"
+    warn "sudo mysql -e \"ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'your_password'; FLUSH PRIVILEGES;\""
 fi
