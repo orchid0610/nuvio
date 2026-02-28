@@ -7,6 +7,13 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# ── Ensure interactive TTY ───────────────────────────────────
+# When invoked via curl | bash, stdin is the pipe not the terminal.
+# Re-open stdin from /dev/tty so read prompts work correctly.
+if [[ ! -t 0 ]]; then
+    exec < /dev/tty
+fi
+
 # ── Load libraries ───────────────────────────────────────────
 source "$ROOT_DIR/lib/log.sh"
 source "$ROOT_DIR/lib/pkg.sh"
