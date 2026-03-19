@@ -14,7 +14,7 @@ if pkg_installed nginx; then
     status_skipped "Nginx (already installed)"
 else
     run_quiet "Installing Nginx" pkg_install nginx
-    sudo systemctl enable --now nginx &>/dev/null
+    sudo systemctl enable --now nginx &>/dev/null || true
     status_done "Nginx"
 fi
 

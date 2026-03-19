@@ -30,14 +30,15 @@ else
 fi
 
 # ── Nginx vhost ──────────────────────────────────────────────
-local vhost=/etc/nginx/sites-available/phpmyadmin
-local php_sock_version="${PHP_VERSIONS_ARR[-1]}"   # use highest configured version
+# No 'local' here — this file is sourced, not called as a function
+_pma_vhost=/etc/nginx/sites-available/phpmyadmin
+_pma_php_ver="${PHP_VERSIONS_ARR[-1]}"
 
-if [[ -f "$vhost" ]]; then
+if [[ -f "$_pma_vhost" ]]; then
     status_skipped "phpMyAdmin Nginx vhost (already exists)"
 else
-    log "Creating phpMyAdmin Nginx vhost (phpmyadmin.test → php${php_sock_version}-fpm)"
-    sudo tee "$vhost" >/dev/null <<NGINX
+    log "Creating phpMyAdmin Nginx vhost (phpmyadmin.test → php${_pma_php_ver}-fpm)"
+    sudo tee "$_pma_vhost" >/dev/null <<NGINX
 server {
     listen 80;
     server_name phpmyadmin.test;
@@ -51,7 +52,7 @@ server {
 
     location ~ \.php\$ {
         include snippets/fastcgi-php.conf;
-        fastcgi_pass unix:/var/run/php/php${php_sock_version}-fpm.sock;
+        fastcgi_pass unix:/var/run/php/php${_pma_php_ver}-fpm.sock;
     }
 
     location ~ /\.ht {
@@ -59,7 +60,7 @@ server {
     }
 }
 NGINX
-    sudo ln -sf "$vhost" /etc/nginx/sites-enabled/phpmyadmin
+    sudo ln -sf "$_pma_vhost" /etc/nginx/sites-enabled/phpmyadmin
     success "phpMyAdmin Nginx vhost created"
 fi
 
@@ -72,6 +73,9 @@ else
 fi
 
 # ── Reload Nginx ─────────────────────────────────────────────
-sudo nginx -t &>/dev/null && sudo systemctl reload nginx &>/dev/null \
-    && success "Nginx reloaded" \
-    || warn "Nginx config test failed — check manually"
+if sudo nginx -t &>/dev/null; then
+    sudo systemctl reload nginx &>/dev/null || true
+    success "Nginx reloaded"
+else
+    warn "Nginx config test failed — check manually with: sudo nginx -t"
+fi
